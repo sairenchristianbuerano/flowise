@@ -44,11 +44,6 @@ Thumbs.db
 *.log
 logs/
 
-# Docker volumes (if mounted locally)
-data/
-component_data/
-index_data/
-
 # Testing
 .pytest_cache/
 .coverage
@@ -58,3 +53,8 @@ htmlcov/
 *.bak
 *.backup
 backup_*.json
+
+# Docker volumes (if mounted locally)
+# data/
+# component_data/
+# index_data/
