@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Component Generator Service
+  component-generator:
+    build:
+      context: ./component-generator
+    container_name: flowise-component-generator
+    ports:
+      - "8085:8085"
+    environment:
+      - PORT=8085
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-20250514}
+      - COMPONENT_RAG_URL=${COMPONENT_RAG_URL:-http://rag-service:8088}
+    volumes:
+      - component_data:/app/data
+    networks:
+      - flowise-network
+    restart: unless-stopped
+
+  # Component Index Service
+  component-index:
+    build:
+      context: ./component-index
+    container_name: flowise-component-index
+    ports:
+      - "8086:8086"
+    environment:
+      - PORT=8086
+      - STORAGE_PATH=/app/data/components
+    volumes:
+      - index_data:/app/data
+    networks:
+      - flowise-network
+    restart: unless-stopped
+
+networks:
+  flowise-network:
+    driver: bridge
+
+volumes:
+  component_data:
+  index_data:

@@ -1,0 +1,18 @@
+# Flowise Component Generator Dependencies
+
+# Core FastAPI and async support
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# HTTP client for API calls
+aiohttp==3.9.1
+
+# Logging
+structlog==23.2.0
+
+# Claude API client
+anthropic>=0.39.0
+
+# Shared dependencies
+python-multipart==0.0.6
