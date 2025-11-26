@@ -12,11 +12,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download embedding model to avoid runtime downloads
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+
 # Copy service code
 COPY src/ ./src/
 
-# Create data directories for component storage
-RUN mkdir -p /app/data/components
+# Create data directories for component storage and ChromaDB
+RUN mkdir -p /app/data/components /app/data/chromadb /app/data/flowise_components
 
 # Expose port
 EXPOSE 8086

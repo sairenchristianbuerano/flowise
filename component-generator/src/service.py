@@ -63,7 +63,7 @@ async def health_check():
     }
 
 
-@app.post("/api/flowise/generate")
+@app.post("/api/flowise/component-generator/generate")
 async def generate_component_endpoint(request: GenerateRequest):
     """
     Generate custom Flowise component from YAML specification
@@ -105,7 +105,7 @@ async def generate_component_endpoint(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/flowise/assess")
+@app.post("/api/flowise/component-generator/assess")
 async def assess_feasibility_endpoint(request: GenerateRequest):
     """
     Assess feasibility of generating a Flowise component before attempting generation

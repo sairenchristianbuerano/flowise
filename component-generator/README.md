@@ -25,8 +25,8 @@ component-generator/
 ### service.py
 FastAPI application with two main endpoints:
 
-- `POST /api/flowise/generate` - Generate component from YAML spec
-- `POST /api/flowise/assess` - Assess feasibility before generation
+- `POST /api/flowise/component-generator/generate` - Generate component from YAML spec
+- `POST /api/flowise/component-generator/assess` - Assess feasibility before generation
 - `GET /api/flowise/component-generator/health` - Health check
 
 ### flowise_agent.py
@@ -74,7 +74,7 @@ Shared Pydantic models:
 ### Generate Component
 
 ```bash
-POST /api/flowise/generate
+POST /api/flowise/component-generator/generate
 Content-Type: application/json
 
 {
@@ -100,7 +100,7 @@ Content-Type: application/json
 ### Assess Feasibility
 
 ```bash
-POST /api/flowise/assess
+POST /api/flowise/component-generator/assess
 Content-Type: application/json
 
 {
@@ -187,7 +187,7 @@ icon: "tool.svg"
 
 ```bash
 # Test generation with curl
-curl -X POST http://localhost:8085/api/flowise/generate \
+curl -X POST http://localhost:8085/api/flowise/component-generator/generate \
   -H "Content-Type: application/json" \
   -d '{"spec_yaml": "name: TestTool\ndisplay_name: Test\ndescription: Test tool\ncategory: tools\nplatforms:\n  - flowise\nrequirements:\n  - Echo input"}'
 

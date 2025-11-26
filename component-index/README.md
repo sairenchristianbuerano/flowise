@@ -1,21 +1,27 @@
 # Flowise Component Index Service
 
-Component registry and tracking system for generated Flowise components.
+Component registry and tracking system for generated Flowise components, with integrated pattern search.
 
 ## 📋 Overview
 
-This service maintains a searchable index of all generated Flowise components. It tracks metadata, deployment status, and provides statistics about component generation history.
+This service provides two main functions:
+
+1. **Component Registry** - Tracks metadata, deployment status, and statistics for generated components
+2. **Pattern Search** - Semantic search over reference component patterns using RAG (Retrieval-Augmented Generation)
+
+The pattern search functionality helps the component generator create better, more consistent code by learning from existing component patterns.
 
 ## 🏗️ Architecture
 
 ```
 component-index/
 ├── src/
-│   ├── service.py    # FastAPI application & endpoints
-│   ├── models.py     # Pydantic data models
-│   └── storage.py    # JSON-based storage layer
-├── Dockerfile        # Container definition
-└── requirements.txt  # Python dependencies
+│   ├── service.py           # FastAPI application & endpoints (registry + patterns)
+│   ├── models.py            # Pydantic data models
+│   ├── storage.py           # JSON-based storage layer
+│   └── flowise_rag_engine.py # Pattern search engine (ChromaDB + embeddings)
+├── Dockerfile               # Container definition
+└── requirements.txt         # Python dependencies (includes ChromaDB)
 ```
 
 ## 🔧 Core Components
@@ -23,12 +29,20 @@ component-index/
 ### service.py
 FastAPI application with RESTful endpoints for:
 
+**Component Registry (`/api/flowise/components/*`)**:
 - Component registration
 - Component retrieval (by ID or name)
 - Component listing with filters
 - Deployment status tracking
 - Component deletion
 - Statistics
+
+**Pattern Search (`/api/flowise/patterns/*`)**:
+- Semantic search for patterns
+- Find similar component patterns
+- Pattern retrieval by name
+- Pattern reindexing
+- Pattern statistics
 
 ### models.py
 **Pydantic models:**
@@ -61,7 +75,24 @@ FastAPI application with RESTful endpoints for:
 - Timestamp management
 - Search by ID or name
 
+### flowise_rag_engine.py
+**FlowiseRAGEngine** class:
+
+- ChromaDB vector database integration
+- Sentence-transformers embedding model (`all-MiniLM-L6-v2`)
+- Semantic search over component patterns
+- Component indexing from knowledge base (`/app/data/flowise_components`)
+
+**Pattern search features:**
+- Search by query string
+- Find similar components by description
+- Category filtering
+- Similarity scoring
+- Statistics generation
+
 ## 📡 API Endpoints
+
+The service provides two sets of endpoints:
 
 ### Health Check
 
@@ -224,6 +255,116 @@ GET /api/flowise/components/stats
 }
 ```
 
+---
+
+## 🔍 Pattern Search Endpoints
+
+### Search Patterns
+
+```bash
+POST /api/flowise/patterns/search
+Content-Type: application/json
+
+{
+  "query": "component that processes text",
+  "n_results": 5,
+  "category": "utilities"
+}
+```
+
+**Response:**
+```json
+{
+  "query": "component that processes text",
+  "results_count": 5,
+  "results": [
+    {
+      "name": "TextProcessor",
+      "description": "Process and transform text",
+      "code": "...",
+      "similarity": 0.85
+    }
+  ],
+  "platform": "flowise"
+}
+```
+
+### Find Similar Patterns
+
+```bash
+POST /api/flowise/patterns/similar
+Content-Type: application/json
+
+{
+  "description": "A tool that calculates mathematical expressions",
+  "category": "tools",
+  "n_results": 3
+}
+```
+
+**Response:**
+```json
+{
+  "description": "A tool that calculates...",
+  "results_count": 3,
+  "results": [
+    {
+      "name": "CalculatorTool",
+      "category": "tools",
+      "code": "...",
+      "inputs": [...],
+      "outputs": [...]
+    }
+  ],
+  "platform": "flowise"
+}
+```
+
+### Get Pattern by Name
+
+```bash
+GET /api/flowise/patterns/{pattern_name}
+```
+
+**Response:** Single component pattern object
+
+### Reindex Patterns
+
+```bash
+POST /api/flowise/patterns/index
+Content-Type: application/json
+
+{
+  "force_reindex": true
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "components_indexed": 15,
+  "force_reindex": true,
+  "platform": "flowise"
+}
+```
+
+### Get Pattern Statistics
+
+```bash
+GET /api/flowise/patterns/stats
+```
+
+**Response:**
+```json
+{
+  "total_components": 15,
+  "has_embeddings": true
+}
+```
+
+---
+
 ## 🚀 Running the Service
 
 ### With Docker (Recommended)
@@ -257,16 +398,25 @@ Service will be available at http://localhost:8086
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PORT` | No | `8086` | Service port |
-| `STORAGE_PATH` | No | `/app/data/components` | JSON storage directory |
+| `STORAGE_PATH` | No | `/app/data/components` | JSON storage directory for registry |
+| `FLOWISE_COMPONENTS_DIR` | No | `/app/data/flowise_components` | Component pattern knowledge base directory |
+| `CHROMADB_DIR` | No | `/app/data/chromadb` | ChromaDB vector database directory |
 
 ## 💾 Data Storage
 
-### Storage Format
+The service stores both component registry data and pattern search data:
+
+### Component Registry Storage
 
 Components are stored in JSON format at:
 ```
 /app/data/components/index.json
 ```
+
+### Pattern Search Storage
+
+- **ChromaDB**: Vector embeddings at `/app/data/chromadb`
+- **Knowledge Base**: Component patterns at `/app/data/flowise_components` (read-only)
 
 **Structure:**
 ```json
@@ -351,7 +501,7 @@ curl "http://localhost:8086/api/flowise/components?category=tools&limit=5"
 1. **After Generation:**
    ```bash
    # Component generator creates component
-   POST /api/flowise/generate
+   POST /api/flowise/component-generator/generate
 
    # Register in index
    POST /api/flowise/components/register

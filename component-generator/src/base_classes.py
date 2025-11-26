@@ -70,7 +70,7 @@ class BaseCodeGenerator(ABC):
     ):
         self.agent_id = agent_id
         self.platform = platform
-        self.rag_url = rag_url or os.getenv("COMPONENT_RAG_URL", "http://rag-service:8088")
+        self.rag_url = rag_url or os.getenv("COMPONENT_RAG_URL", "http://component-index:8086")
         self.platform_url = platform_url
         self.logger = logger.bind(agent_id=agent_id, platform=platform)
         self.max_validation_retries = 2
@@ -93,9 +93,9 @@ class BaseCodeGenerator(ABC):
         try:
             # Use platform-specific RAG endpoint
             if self.platform == "flowise":
-                endpoint = f"{self.rag_url}/flowise/components/similar"
+                endpoint = f"{self.rag_url}/api/flowise/patterns/similar"
             else:
-                endpoint = f"{self.rag_url}/components/similar"
+                endpoint = f"{self.rag_url}/api/flowise/patterns/similar"
 
             # Determine input/output types from spec
             input_types = []

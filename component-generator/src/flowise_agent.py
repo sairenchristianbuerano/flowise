@@ -68,7 +68,7 @@ class CustomComponentGenerator:
     ):
         self.agent_id = agent_id
         self.rag_url = rag_url or os.getenv(
-            "COMPONENT_RAG_URL", "http://rag-service:8088")
+            "COMPONENT_RAG_URL", "http://component-index:8086")
         self.flowise_url = flowise_url or os.getenv(
             "FLOWISE_URL", "http://flowise:3000")
         self.logger = logger.bind(agent_id=agent_id)
@@ -918,7 +918,7 @@ class MyTool_Tools implements INode {
         )
 
         try:
-            endpoint = f"{self.rag_url}/flowise/components/similar"
+            endpoint = f"{self.rag_url}/api/flowise/patterns/similar"
 
             # Determine input/output types from spec
             input_types = []

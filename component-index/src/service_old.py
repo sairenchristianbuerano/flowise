@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from models import ComponentMetadata, ComponentRegistrationRequest, ComponentListResponse
 from storage import ComponentStorage
-from flowise_rag_engine import FlowiseRAGEngine
 
 logger = structlog.get_logger()
 
@@ -28,14 +27,11 @@ app = FastAPI(
 # Storage instance
 storage: Optional[ComponentStorage] = None
 
-# RAG Pattern Engine
-pattern_engine: Optional[FlowiseRAGEngine] = None
-
 
 @app.on_event("startup")
 async def startup():
-    """Initialize storage and RAG pattern engine"""
-    global storage, pattern_engine
+    """Initialize storage"""
+    global storage
 
     logger.info("Starting Flowise Component Index service")
 
@@ -44,22 +40,6 @@ async def startup():
     storage = ComponentStorage(storage_path=storage_path)
 
     logger.info("Component storage initialized", path=storage_path)
-
-    # Initialize RAG pattern engine
-    flowise_components_dir = os.getenv("FLOWISE_COMPONENTS_DIR", "/app/data/flowise_components")
-    chromadb_dir = os.getenv("CHROMADB_DIR", "/app/data/chromadb")
-
-    try:
-        pattern_engine = FlowiseRAGEngine(
-            flowise_components_dir=flowise_components_dir,
-            persist_directory=chromadb_dir
-        )
-
-        pattern_count = pattern_engine.index_components()
-        logger.info("Pattern engine initialized", patterns_indexed=pattern_count)
-    except Exception as e:
-        logger.warning("Pattern engine initialization failed", error=str(e))
-        logger.warning("Pattern search endpoints will not be available")
 
 
 @app.on_event("shutdown")
@@ -73,20 +53,11 @@ async def health_check():
     """Health check endpoint"""
     stats = storage.get_stats() if storage else {}
 
-    # Include pattern engine status
-    pattern_stats = None
-    if pattern_engine:
-        try:
-            pattern_stats = pattern_engine.get_stats()
-        except Exception as e:
-            logger.warning("Failed to get pattern stats", error=str(e))
-
     return {
         "status": "healthy",
         "service": "flowise-component-index",
         "version": "1.0.0",
-        "stats": stats,
-        "pattern_engine": pattern_stats
+        "stats": stats
     }
 
 
@@ -272,149 +243,6 @@ async def get_stats():
         return stats
     except Exception as e:
         logger.error("Stats retrieval failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
-# PATTERN SEARCH ENDPOINTS (RAG)
-# ============================================================================
-
-class PatternSearchRequest(BaseModel):
-    """Request for pattern search"""
-    query: str
-    n_results: int = 5
-    category: Optional[str] = None
-
-
-class PatternSimilarRequest(BaseModel):
-    """Request for finding similar patterns"""
-    description: str
-    category: Optional[str] = None
-    input_types: Optional[List[str]] = None
-    n_results: int = 3
-
-
-class PatternIndexRequest(BaseModel):
-    """Request for reindexing patterns"""
-    force_reindex: bool = False
-
-
-@app.post("/api/flowise/patterns/search")
-async def search_patterns(request: PatternSearchRequest):
-    """
-    Search component patterns using semantic search
-
-    This endpoint searches the knowledge base of reference component patterns
-    to help guide code generation with similar examples.
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        results = pattern_engine.search_components(
-            query=request.query,
-            n_results=request.n_results,
-            category=request.category
-        )
-
-        return {
-            "query": request.query,
-            "results_count": len(results),
-            "results": results,
-            "platform": "flowise"
-        }
-    except Exception as e:
-        logger.error("Pattern search failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/flowise/patterns/similar")
-async def find_similar_patterns(request: PatternSimilarRequest):
-    """
-    Find component patterns similar to a description
-
-    Used by the component generator to find reference implementations
-    that match the specification being generated.
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        results = pattern_engine.find_similar_components(
-            description=request.description,
-            category=request.category,
-            input_types=request.input_types,
-            n_results=request.n_results
-        )
-
-        return {
-            "description": request.description,
-            "results_count": len(results),
-            "results": results,
-            "platform": "flowise"
-        }
-    except Exception as e:
-        logger.error("Similar pattern search failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/flowise/patterns/{pattern_name}")
-async def get_pattern_by_name(pattern_name: str):
-    """
-    Get a specific component pattern by name
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        pattern = pattern_engine.get_component_by_name(pattern_name)
-
-        if not pattern:
-            raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_name}")
-
-        return pattern
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Pattern retrieval failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/flowise/patterns/index")
-async def reindex_patterns(request: PatternIndexRequest):
-    """
-    Reindex component patterns from the knowledge base
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        count = pattern_engine.index_components(force_reindex=request.force_reindex)
-
-        return {
-            "status": "success",
-            "components_indexed": count,
-            "force_reindex": request.force_reindex,
-            "platform": "flowise"
-        }
-    except Exception as e:
-        logger.error("Pattern reindexing failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/flowise/patterns/stats")
-async def get_pattern_stats():
-    """
-    Get pattern knowledge base statistics
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        stats = pattern_engine.get_stats()
-        return stats
-    except Exception as e:
-        logger.error("Pattern stats retrieval failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

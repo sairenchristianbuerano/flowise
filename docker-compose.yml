@@ -12,14 +12,17 @@ services:
       - PORT=8085
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CLAUDE_MODEL=${CLAUDE_MODEL:-claude-sonnet-4-20250514}
-      - COMPONENT_RAG_URL=${COMPONENT_RAG_URL:-http://rag-service:8088}
+      - COMPONENT_RAG_URL=${COMPONENT_RAG_URL:-http://component-index:8086}
     volumes:
       - component_data:/app/data
     networks:
       - flowise-network
+    depends_on:
+      component-index:
+        condition: service_healthy
     restart: unless-stopped
 
-  # Component Index Service
+  # Component Index Service (includes RAG pattern search)
   component-index:
     build:
       context: ./component-index
@@ -29,11 +32,20 @@ services:
     environment:
       - PORT=8086
       - STORAGE_PATH=/app/data/components
+      - FLOWISE_COMPONENTS_DIR=/app/data/flowise_components
+      - CHROMADB_DIR=/app/data/chromadb
     volumes:
       - index_data:/app/data
+      - ./data/flowise_components:/app/data/flowise_components:ro
     networks:
       - flowise-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/api/flowise/component-index/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 networks:
   flowise-network:

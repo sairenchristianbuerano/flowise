@@ -7,9 +7,11 @@ Backend services for generating and managing custom Flowise components.
 This repository contains two microservices specifically for Flowise platform:
 
 1. **Component Generator** - Generates custom Flowise component code from YAML specifications
-2. **Component Index** - Tracks and manages generated components
+2. **Component Index** - Tracks and manages generated components, includes RAG pattern search
 
-Both services are **separate from the main teamsflow** multi-agent system and focus exclusively on Flowise component development.
+The **Component Index** service provides both component registry functionality and semantic search over Flowise component patterns to help generate better, more consistent code.
+
+All services are **separate from the main teamsflow** multi-agent system and focus exclusively on Flowise component development.
 
 ---
 
@@ -26,13 +28,19 @@ flowise/
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── component-index/          # Component registry service
+├── component-index/          # Component registry & pattern search service
 │   ├── src/
-│   │   ├── service.py        # FastAPI endpoints
+│   │   ├── service.py        # FastAPI endpoints (registry + patterns)
 │   │   ├── models.py         # Data models
-│   │   └── storage.py        # JSON-based storage
+│   │   ├── storage.py        # JSON-based storage
+│   │   └── flowise_rag_engine.py  # Pattern search engine
 │   ├── Dockerfile
 │   └── requirements.txt
+│
+├── data/
+│   └── flowise_components/   # Component knowledge base
+│       ├── tools/            # Tool components
+│       └── utilities/        # Utility components
 │
 └── docker-compose.yml        # Service orchestration
 ```
@@ -57,8 +65,8 @@ ANTHROPIC_API_KEY=your_api_key_here
 # Optional: Claude model selection
 CLAUDE_MODEL=claude-sonnet-4-20250514
 
-# Optional: RAG service URL (if available)
-COMPONENT_RAG_URL=http://rag-service:8088
+# Optional: Pattern search URL (served by component-index)
+COMPONENT_RAG_URL=http://component-index:8086
 ```
 
 ### 2. Start Services
@@ -103,7 +111,7 @@ GET /api/flowise/component-generator/health
 
 #### Generate Component
 ```bash
-POST /api/flowise/generate
+POST /api/flowise/component-generator/generate
 Content-Type: application/json
 
 {
@@ -113,7 +121,7 @@ Content-Type: application/json
 
 **Example Request:**
 ```bash
-curl -X POST http://localhost:8085/api/flowise/generate \
+curl -X POST http://localhost:8085/api/flowise/component-generator/generate \
   -H "Content-Type: application/json" \
   -d '{
     "spec_yaml": "name: CalculatorTool\ndisplay_name: Calculator\ndescription: Perform basic calculations\ncategory: tools\nplatforms:\n  - flowise\nrequirements:\n  - Evaluate mathematical expressions"
@@ -141,7 +149,7 @@ curl -X POST http://localhost:8085/api/flowise/generate \
 
 #### Assess Feasibility
 ```bash
-POST /api/flowise/assess
+POST /api/flowise/component-generator/assess
 Content-Type: application/json
 
 {
@@ -263,6 +271,10 @@ GET /api/flowise/components/stats
 
 ---
 
+**Note:** The Component Index service (port 8086) also provides pattern search endpoints under `/api/flowise/patterns/*`. Pattern search provides semantic search over Flowise component patterns to help generate better, more consistent code. See the [Component Index README](component-index/README.md) for complete documentation of pattern search endpoints.
+
+---
+
 ## 📝 YAML Specification Format
 
 Component specifications use YAML format:
@@ -340,6 +352,8 @@ python src/service.py
 
 Service runs on http://localhost:8086
 
+**Note:** Pattern search functionality is built into component-index. No separate RAG service needed.
+
 ---
 
 ## 🔗 Integration with teamsflow
@@ -347,8 +361,9 @@ Service runs on http://localhost:8086
 While this repository is separate from teamsflow, it can integrate with:
 
 - **tf-flowise-dev-env**: Optional deployment target for generated components
-- **RAG Service**: For retrieving similar component patterns
 - **Deployment scripts**: Located in teamsflow repo (`scripts/deploy_component.py`)
+
+Pattern search functionality is built into the component-index service.
 
 ---
 
@@ -358,7 +373,7 @@ Generated components can be **optionally** deployed to `tf-flowise-dev-env` (fro
 
 ### Option 1: Manual Deployment
 
-1. Generate component using `POST /api/flowise/generate`
+1. Generate component using `POST /api/flowise/component-generator/generate`
 2. Copy `component_code` from response
 3. Save to `teamsflow/data/flowise-custom-components/ComponentName/ComponentName.js`
 4. Restart tf-flowise-dev-env: `docker restart tf-flowise-dev-env`
@@ -390,7 +405,7 @@ requirements:
 EOF
 
 # Convert to JSON with spec_yaml field
-curl -X POST http://localhost:8085/api/flowise/generate \
+curl -X POST http://localhost:8085/api/flowise/component-generator/generate \
   -H "Content-Type: application/json" \
   -d "{\"spec_yaml\": \"$(cat test_spec.yaml | sed 's/$/\\n/' | tr -d '\n')\"}"
 ```
@@ -419,6 +434,29 @@ curl http://localhost:8086/api/flowise/components
 curl http://localhost:8086/api/flowise/components/stats
 ```
 
+### Test Pattern Search
+
+Pattern search is provided by component-index on port 8086:
+
+```bash
+# Search for patterns
+curl -X POST http://localhost:8086/api/flowise/patterns/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "text processing tool",
+    "n_results": 3
+  }'
+
+# Find similar patterns
+curl -X POST http://localhost:8086/api/flowise/patterns/similar \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "A component that formats JSON data",
+    "category": "utilities",
+    "n_results": 5
+  }'
+```
+
 ---
 
 ## 📊 Monitoring
@@ -440,7 +478,7 @@ docker-compose logs -f component-index
 # Component Generator
 curl http://localhost:8085/api/flowise/component-generator/health
 
-# Component Index (includes stats)
+# Component Index (includes stats and pattern search)
 curl http://localhost:8086/api/flowise/component-index/health
 ```
 
@@ -461,16 +499,30 @@ docker-compose restart component-index
 
 ### Component Index Storage
 
+The component-index service stores both component registry and pattern search data:
+
 - **Location**: Docker volume `index_data`
-- **Format**: JSON file (`/app/data/components/index.json`)
-- **Backup**: Copy from container or mount local directory
+- **Registry**: JSON file at `/app/data/components/index.json`
+- **ChromaDB**: Vector embeddings stored in `/app/data/chromadb`
+- **Knowledge Base**: Component patterns in `./data/flowise_components` (read-only mount)
 
 ```bash
-# Backup index
+# Backup component index
 docker cp flowise-component-index:/app/data/components/index.json ./backup_index.json
+
+# Backup ChromaDB (pattern embeddings)
+docker cp flowise-component-index:/app/data/chromadb ./backup_chromadb
 
 # Restore index
 docker cp ./backup_index.json flowise-component-index:/app/data/components/index.json
+
+# Restore ChromaDB
+docker cp ./backup_chromadb flowise-component-index:/app/data/chromadb
+
+# Reindex patterns after restore
+curl -X POST http://localhost:8086/api/flowise/patterns/index \
+  -H "Content-Type: application/json" \
+  -d '{"force_reindex": true}'
 ```
 
 ---
@@ -499,19 +551,50 @@ docker-compose logs component-index
 docker exec flowise-component-index ls -la /app/data/components/
 ```
 
+### Pattern Search Issues
+
+Pattern search is now part of component-index:
+
+```bash
+# Check logs
+docker-compose logs component-index
+
+# Common issues:
+# - No components indexed: Check data/flowise_components/ directory exists
+# - ChromaDB initialization failure: Clear and rebuild
+# - Pattern engine not initialized: Check startup logs
+
+# Verify knowledge base
+docker exec flowise-component-index ls -la /app/data/flowise_components/
+
+# Check pattern stats
+curl http://localhost:8086/api/flowise/patterns/stats
+
+# Force reindex
+curl -X POST http://localhost:8086/api/flowise/patterns/index \
+  -H "Content-Type: application/json" \
+  -d '{"force_reindex": true}'
+```
+
 ### Port Conflicts
 
 ```bash
 # Change ports in docker-compose.yml if 8085 or 8086 are in use
 ports:
-  - "9085:8085"  # Use port 9085 instead
+  - "9085:8085"  # Use port 9085 for component-generator instead
+  - "9086:8086"  # Use port 9086 for component-index instead
 ```
 
 ---
 
 ## 📚 Related Documentation
 
-- [Flowise Documentation](https://docs.flowiseai.com)
+### Service Documentation
+- [Component Generator README](component-generator/README.md) - Code generation service
+- [Component Index README](component-index/README.md) - Component registry & pattern search
+
+### External Resources
+- [Flowise Documentation](https://docs.flowiseai.com) - Official Flowise docs
 - [teamsflow Repository](../ian/teamsflow) - Multi-agent system
 - [Phase 2A Findings](../ian/teamsflow/PHASE_2A_FINDINGS.md) - Component development insights
 
