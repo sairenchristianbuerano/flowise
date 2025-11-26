@@ -93,9 +93,9 @@ class BaseCodeGenerator(ABC):
         try:
             # Use platform-specific RAG endpoint
             if self.platform == "flowise":
-                endpoint = f"{self.rag_url}/api/flowise/patterns/similar"
+                endpoint = f"{self.rag_url}/api/flowise/component-index/patterns/similar"
             else:
-                endpoint = f"{self.rag_url}/api/flowise/patterns/similar"
+                endpoint = f"{self.rag_url}/api/flowise/component-index/patterns/similar"
 
             # Determine input/output types from spec
             input_types = []

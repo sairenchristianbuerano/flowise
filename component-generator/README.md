@@ -2,9 +2,13 @@
 
 Generates custom Flowise component code from YAML specifications using Claude AI.
 
+**Flowise Version:** Based on [Flowise v3.0.8](https://github.com/FlowiseAI/Flowise/blob/flowise%403.0.8/package.json) component patterns and APIs
+
 ## 📋 Overview
 
 This service generates production-ready JavaScript code for Flowise custom components based on YAML specifications. It uses Claude AI to create components that follow Flowise best practices and patterns.
+
+The generator targets **[Flowise v3.0.8](https://github.com/FlowiseAI/Flowise/tree/flowise%403.0.8)** component architecture, ensuring compatibility with the Flowise component API, data models, and plugin system.
 
 ## 🏗️ Architecture
 

@@ -90,7 +90,7 @@ async def health_check():
     }
 
 
-@app.post("/api/flowise/components/register", response_model=ComponentMetadata)
+@app.post("/api/flowise/component-index/components/register", response_model=ComponentMetadata)
 async def register_component(request: ComponentRegistrationRequest):
     """
     Register a generated component in the index
@@ -128,7 +128,7 @@ async def register_component(request: ComponentRegistrationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/flowise/components", response_model=ComponentListResponse)
+@app.get("/api/flowise/component-index/components", response_model=ComponentListResponse)
 async def list_components(
     platform: Optional[str] = Query(None, description="Filter by platform"),
     category: Optional[str] = Query(None, description="Filter by category"),
@@ -168,29 +168,23 @@ async def list_components(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/flowise/components/{component_id}", response_model=ComponentMetadata)
-async def get_component(component_id: str):
+@app.get("/api/flowise/component-index/components/stats")
+async def get_stats():
     """
-    Get component metadata by ID
+    Get component index statistics
     """
     if not storage:
         raise HTTPException(status_code=503, detail="Storage not initialized")
 
     try:
-        component = storage.get_component(component_id)
-
-        if not component:
-            raise HTTPException(status_code=404, detail=f"Component not found: {component_id}")
-
-        return component
-    except HTTPException:
-        raise
+        stats = storage.get_stats()
+        return stats
     except Exception as e:
-        logger.error("Component retrieval failed", error=str(e))
+        logger.error("Stats retrieval failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/flowise/components/name/{name}", response_model=ComponentMetadata)
+@app.get("/api/flowise/component-index/components/name/{name}", response_model=ComponentMetadata)
 async def get_component_by_name(name: str):
     """
     Get component metadata by name (returns latest version)
@@ -212,7 +206,29 @@ async def get_component_by_name(name: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.patch("/api/flowise/components/{component_id}/deployment")
+@app.get("/api/flowise/component-index/components/{component_id}", response_model=ComponentMetadata)
+async def get_component(component_id: str):
+    """
+    Get component metadata by ID
+    """
+    if not storage:
+        raise HTTPException(status_code=503, detail="Storage not initialized")
+
+    try:
+        component = storage.get_component(component_id)
+
+        if not component:
+            raise HTTPException(status_code=404, detail=f"Component not found: {component_id}")
+
+        return component
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Component retrieval failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/flowise/component-index/components/{component_id}/deployment")
 async def update_deployment_status(
     component_id: str,
     status: str = Query(..., description="Deployment status")
@@ -237,7 +253,7 @@ async def update_deployment_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/api/flowise/components/{component_id}")
+@app.delete("/api/flowise/component-index/components/{component_id}")
 async def delete_component(component_id: str):
     """
     Delete a component from the index
@@ -256,22 +272,6 @@ async def delete_component(component_id: str):
         raise
     except Exception as e:
         logger.error("Component deletion failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/flowise/components/stats")
-async def get_stats():
-    """
-    Get component index statistics
-    """
-    if not storage:
-        raise HTTPException(status_code=503, detail="Storage not initialized")
-
-    try:
-        stats = storage.get_stats()
-        return stats
-    except Exception as e:
-        logger.error("Stats retrieval failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -299,7 +299,7 @@ class PatternIndexRequest(BaseModel):
     force_reindex: bool = False
 
 
-@app.post("/api/flowise/patterns/search")
+@app.post("/api/flowise/component-index/patterns/search")
 async def search_patterns(request: PatternSearchRequest):
     """
     Search component patterns using semantic search
@@ -311,10 +311,13 @@ async def search_patterns(request: PatternSearchRequest):
         raise HTTPException(status_code=503, detail="Pattern engine not initialized")
 
     try:
-        results = pattern_engine.search_components(
+        # Build filters if category specified
+        filters = {'category': request.category} if request.category else None
+
+        results = pattern_engine.search(
             query=request.query,
             n_results=request.n_results,
-            category=request.category
+            filters=filters
         )
 
         return {
@@ -328,7 +331,7 @@ async def search_patterns(request: PatternSearchRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/flowise/patterns/similar")
+@app.post("/api/flowise/component-index/patterns/similar")
 async def find_similar_patterns(request: PatternSimilarRequest):
     """
     Find component patterns similar to a description
@@ -358,29 +361,7 @@ async def find_similar_patterns(request: PatternSimilarRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/flowise/patterns/{pattern_name}")
-async def get_pattern_by_name(pattern_name: str):
-    """
-    Get a specific component pattern by name
-    """
-    if not pattern_engine:
-        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
-
-    try:
-        pattern = pattern_engine.get_component_by_name(pattern_name)
-
-        if not pattern:
-            raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_name}")
-
-        return pattern
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Pattern retrieval failed", error=str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/flowise/patterns/index")
+@app.post("/api/flowise/component-index/patterns/index")
 async def reindex_patterns(request: PatternIndexRequest):
     """
     Reindex component patterns from the knowledge base
@@ -402,7 +383,7 @@ async def reindex_patterns(request: PatternIndexRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/flowise/patterns/stats")
+@app.get("/api/flowise/component-index/patterns/stats")
 async def get_pattern_stats():
     """
     Get pattern knowledge base statistics
@@ -415,6 +396,28 @@ async def get_pattern_stats():
         return stats
     except Exception as e:
         logger.error("Pattern stats retrieval failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/flowise/component-index/patterns/{pattern_name}")
+async def get_pattern_by_name(pattern_name: str):
+    """
+    Get a specific component pattern by name
+    """
+    if not pattern_engine:
+        raise HTTPException(status_code=503, detail="Pattern engine not initialized")
+
+    try:
+        pattern = pattern_engine.get_component_by_name(pattern_name)
+
+        if not pattern:
+            raise HTTPException(status_code=404, detail=f"Pattern not found: {pattern_name}")
+
+        return pattern
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Pattern retrieval failed", error=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 

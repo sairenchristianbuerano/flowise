@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Component Generator Service
   component-generator:
@@ -36,7 +34,7 @@ services:
       - CHROMADB_DIR=/app/data/chromadb
     volumes:
       - index_data:/app/data
-      - ./data/flowise_components:/app/data/flowise_components:ro
+      - ./component-index/data/flowise_components:/app/data/flowise_components:ro
     networks:
       - flowise-network
     restart: unless-stopped

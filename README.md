@@ -2,11 +2,13 @@
 
 Backend services for generating and managing custom Flowise components.
 
+**Flowise Version:** Component generator targets [Flowise v3.0.8](https://github.com/FlowiseAI/Flowise/blob/flowise%403.0.8/package.json) component architecture
+
 ## 📋 Overview
 
 This repository contains two microservices specifically for Flowise platform:
 
-1. **Component Generator** - Generates custom Flowise component code from YAML specifications
+1. **Component Generator** - Generates custom Flowise component code from YAML specifications (targets [Flowise v3.0.8](https://github.com/FlowiseAI/Flowise/tree/flowise%403.0.8))
 2. **Component Index** - Tracks and manages generated components, includes RAG pattern search
 
 The **Component Index** service provides both component registry functionality and semantic search over Flowise component patterns to help generate better, more consistent code.
@@ -34,13 +36,12 @@ flowise/
 │   │   ├── models.py         # Data models
 │   │   ├── storage.py        # JSON-based storage
 │   │   └── flowise_rag_engine.py  # Pattern search engine
+│   ├── data/
+│   │   └── flowise_components/   # Component knowledge base
+│   │       ├── tools/            # Tool components
+│   │       └── utilities/        # Utility components
 │   ├── Dockerfile
 │   └── requirements.txt
-│
-├── data/
-│   └── flowise_components/   # Component knowledge base
-│       ├── tools/            # Tool components
-│       └── utilities/        # Utility components
 │
 └── docker-compose.yml        # Service orchestration
 ```
@@ -504,7 +505,7 @@ The component-index service stores both component registry and pattern search da
 - **Location**: Docker volume `index_data`
 - **Registry**: JSON file at `/app/data/components/index.json`
 - **ChromaDB**: Vector embeddings stored in `/app/data/chromadb`
-- **Knowledge Base**: Component patterns in `./data/flowise_components` (read-only mount)
+- **Knowledge Base**: Component patterns in `./component-index/data/flowise_components` (read-only mount)
 
 ```bash
 # Backup component index
@@ -560,7 +561,7 @@ Pattern search is now part of component-index:
 docker-compose logs component-index
 
 # Common issues:
-# - No components indexed: Check data/flowise_components/ directory exists
+# - No components indexed: Check component-index/data/flowise_components/ directory exists
 # - ChromaDB initialization failure: Clear and rebuild
 # - Pattern engine not initialized: Check startup logs
 
