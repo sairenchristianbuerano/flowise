@@ -1463,6 +1463,56 @@ For CUSTOM tools with your own logic, you MUST use Flowise's DynamicStructuredTo
 
 """
 
+        # Build calculator pattern section (before f-string to avoid backslash issues)
+        is_calculator = 'calculat' in spec.name.lower() or 'calculat' in spec.description.lower() or any('calculat' in str(r).lower() or 'math' in str(r).lower() for r in spec.requirements)
+
+        calculator_pattern_section = ""
+        if is_calculator:
+            calculator_pattern_section = r'''
+**VALIDATED CALCULATOR PATTERN (USE THIS FOR CALCULATOR COMPONENTS):**
+If this is a calculator or mathematical operations component, use this proven pattern as your basis:
+
+Key features of the validated pattern:
+- Extends Tool from '@langchain/core/tools'
+- Has a `mathFunction` input to support different operation modes (default, add, subtract, multiply, divide, power, sqrt, sin, cos, tan)
+- Uses simple validation regex: `/^[0-9+\-*/().\s]+$/` (CRITICAL - no complex character classes)
+- Implements `_sanitizeExpression()` for security (checks for <script, javascript:, eval)
+- Implements `_validateMathExpression()` for input validation
+- Implements `_convertDegreesToRadians()` for trig functions
+- Implements `_applyMathFunction()` for specific operations (switch/case based on mathFunction)
+- Implements `_evaluateSafeExpression()` that replaces sin/cos/tan/sqrt/pow/abs/floor/ceil with Math equivalents
+- Implements `_formatResult()` to format numbers (integers as-is, decimals rounded to 6 places)
+- Main `_call()` method routes to either expression evaluation or specific function based on mathFunction
+
+CRITICAL options input structure (use 'name' NOT 'value'):
+```typescript
+{
+    label: 'Math Function Mode',
+    name: 'mathFunction',
+    type: 'options',
+    options: [
+        { label: 'Default (Expression Evaluation)', name: 'default' },  // Use 'name' NOT 'value'!
+        { label: 'Addition', name: 'add' },
+        { label: 'Subtraction', name: 'subtract' },
+        // etc...
+    ],
+    default: 'default',
+    optional: true
+}
+```
+
+CRITICAL validation approach:
+```typescript
+private _validateMathExpression(expression: string): boolean {
+    if (!expression || typeof expression !== 'string') {
+        return false
+    }
+    const allowedPattern = /^[0-9+\-*/().\s]+$/  // SIMPLE pattern - no complex char classes
+    return allowedPattern.test(expression)
+}
+```
+'''
+
         prompt = f"""
 You are an expert TypeScript developer specializing in Flowise component development.
 
@@ -1485,22 +1535,24 @@ The following import statement should be added based on this component's needs:
 ```
 These are official Flowise validation utilities from the repository. Use them to validate inputs.
 ''' if validation_imports_str else ''}
+{calculator_pattern_section}
 
 **REQUIREMENTS:**
-1. Follow the patterns shown in the similar components above
-2. Implement INode interface with all required properties
-3. **CRITICAL**: Constructor MUST include `this.baseClasses = [this.type, 'Tool']` - component will fail without this
-4. Use proper TypeScript syntax and types for class structure
-5. **REQUIRED**: If component has inputs in constructor, MUST access them in init() via `nodeData.inputs?.inputName as Type`
-6. **REQUIRED**: Add input validation in init() method with `throw new Error()` for invalid inputs
-7. **REQUIRED**: Wrap init() method body in try-catch block for error handling
-8. End with `module.exports = {{ nodeClass: ComponentName }}`
-{f"9. Include these dependencies if needed: {', '.join(spec.dependencies)}" if spec.dependencies else ""}
-{f"10. **CRITICAL FOR TOOLS**: Import from '../CustomTool/core', define code as string OUTSIDE class, use code property NOT func" if is_tool_component else ""}
-{f"11. **CRITICAL FOR TOOLS**: ALWAYS use 'input' as the parameter name in schema for simple single-input tools, access it as $input in code string" if is_tool_component else ""}
-{f"12. **CRITICAL FOR TOOLS**: The 'input' parameter's .describe() should contain the semantic meaning (e.g., 'Mathematical expression to evaluate')" if is_tool_component else ""}
-{f"13. **CRITICAL FOR TOOLS**: Use JavaScript syntax in code string (NOT TypeScript), MUST return a value" if is_tool_component else ""}
-{f"14. **FORBIDDEN FOR TOOLS**: NEVER import from '@langchain/core/tools', NEVER use func property, NEVER use custom parameter names like 'expression' or 'text'" if is_tool_component else ""}
+1. **CRITICAL FOR VALIDATION REGEX**: When validating mathematical expressions or similar input, use SIMPLE regex patterns like `/^[0-9+\-*/().\s]+$/` - DO NOT use complex character classes like `[sincotan√sqrtpowabsfloorceiltrig]` as they cause validation failures and Unicode encoding issues. Keep validation patterns minimal and only include essential characters. THIS OVERRIDES ANY PATTERNS SEEN IN REFERENCE COMPONENTS ABOVE.
+2. Follow the patterns shown in the similar components above (EXCEPT for validation regex patterns - see requirement #1)
+3. Implement INode interface with all required properties
+4. **CRITICAL**: Constructor MUST include `this.baseClasses = [this.type, 'Tool']` - component will fail without this
+5. Use proper TypeScript syntax and types for class structure
+6. **REQUIRED**: If component has inputs in constructor, MUST access them in init() via `nodeData.inputs?.inputName as Type`
+7. **REQUIRED**: Add input validation in init() method with `throw new Error()` for invalid inputs
+8. **REQUIRED**: Wrap init() method body in try-catch block for error handling
+9. End with `module.exports = {{ nodeClass: ComponentName }}`
+{f"10. Include these dependencies if needed: {', '.join(spec.dependencies)}" if spec.dependencies else ""}
+{f"11. **CRITICAL FOR TOOLS**: Import from '../CustomTool/core', define code as string OUTSIDE class, use code property NOT func" if is_tool_component else ""}
+{f"12. **CRITICAL FOR TOOLS**: ALWAYS use 'input' as the parameter name in schema for simple single-input tools, access it as $input in code string" if is_tool_component else ""}
+{f"13. **CRITICAL FOR TOOLS**: The 'input' parameter's .describe() should contain the semantic meaning (e.g., 'Mathematical expression to evaluate')" if is_tool_component else ""}
+{f"14. **CRITICAL FOR TOOLS**: Use JavaScript syntax in code string (NOT TypeScript), MUST return a value" if is_tool_component else ""}
+{f"15. **FORBIDDEN FOR TOOLS**: NEVER import from '@langchain/core/tools', NEVER use func property, NEVER use custom parameter names like 'expression' or 'text'" if is_tool_component else ""}
 
 **Key Points:**
 - Learn from the similar component patterns provided above
