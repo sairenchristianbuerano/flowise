@@ -58,3 +58,11 @@ backup_*.json
 # data/
 # component_data/
 # index_data/
+
+# Generated component test outputs
+component-generator/test-outputs/*
+!component-generator/test-outputs/README.md
+*_FIXED.ts
+*_GENERATED.ts
+generated_*.json
+sample_generation_output.json
