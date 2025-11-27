@@ -15,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy service code
 COPY src/ ./src/
 
+# Copy sample specification file
+COPY sample_spec.yaml ./sample_spec.yaml
+
 # Create data directories
 RUN mkdir -p /app/data/flowise_components
 

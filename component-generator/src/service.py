@@ -105,6 +105,68 @@ async def generate_component_endpoint(request: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/flowise/component-generator/generate/sample")
+async def generate_sample_component():
+    """
+    Generate a sample component using the example specification
+
+    This endpoint demonstrates component generation by using the built-in
+    sample specification file (component_spec_example.yaml). Users can call
+    this endpoint without any request body to see an example of what the
+    generator produces.
+
+    Returns the same structure as the main generate endpoint:
+    - component_code: Generated TypeScript code
+    - validation: Validation results
+    - dependencies: Required npm packages
+    - documentation: Usage documentation
+    """
+    if not generator:
+        raise HTTPException(status_code=503, detail="Generator not initialized")
+
+    try:
+        # Load sample specification from file
+        sample_spec_path = "/app/sample_spec.yaml"
+
+        if not os.path.exists(sample_spec_path):
+            raise HTTPException(
+                status_code=404,
+                detail="Sample specification file not found. Please ensure sample_spec.yaml exists in the container."
+            )
+
+        logger.info("Loading sample specification", path=sample_spec_path)
+
+        with open(sample_spec_path, 'r') as f:
+            spec_yaml = f.read()
+
+        # Parse YAML specification
+        spec_dict = yaml.safe_load(spec_yaml)
+
+        # Convert to ComponentSpec
+        spec = ComponentSpec(**spec_dict)
+
+        logger.info("Generating sample Flowise component", component=spec.name)
+        result = await generator.generate_component(spec)
+
+        logger.info(
+            "Sample component generated successfully",
+            component=spec.name,
+            code_size=len(result.component_code)
+        )
+
+        return {
+            **result.dict(),
+            "sample": True,
+            "note": "This is a sample component generated from component_spec_example.yaml"
+        }
+    except yaml.YAMLError as e:
+        logger.error("Sample YAML parsing failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Invalid sample YAML: {str(e)}")
+    except Exception as e:
+        logger.error("Sample component generation failed", error=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/flowise/component-generator/assess")
 async def assess_feasibility_endpoint(request: GenerateRequest):
     """
