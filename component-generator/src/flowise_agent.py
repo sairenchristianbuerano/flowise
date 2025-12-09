@@ -1089,9 +1089,9 @@ class MyTool_Tools implements INode {
             # test_code = await self._ai_generate_tests(spec, component_code)
             test_code = "# Test generation disabled to save Claude API credits"
 
-            # Step 5: Generate documentation (DISABLED TO SAVE CREDITS)
-            # documentation = await self._ai_generate_documentation(spec, component_code)
-            documentation = "# Documentation generation disabled to save Claude API credits"
+            # Step 5: Generate documentation
+            documentation = await self._ai_generate_documentation(spec, component_code)
+            # documentation = "# Documentation generation disabled to save Claude API credits"  # DISABLED TO SAVE CREDITS
 
             # Step 6: Validate generated code with comprehensive validation
             component_code, validation_details = await self._validate_and_fix_component(

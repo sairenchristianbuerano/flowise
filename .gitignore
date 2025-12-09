@@ -1,6 +1,7 @@
 # Environment variables
 .env
 .env.local
+.env.standalone
 
 # Python
 __pycache__/
@@ -42,7 +43,12 @@ Thumbs.db
 
 # Logs
 *.log
+!test_results_example.log  # Keep example test results for reference
 logs/
+
+# Standalone mode PID files
+.component-index.pid
+.component-generator.pid
 
 # Testing
 .pytest_cache/
@@ -58,6 +64,13 @@ backup_*.json
 # data/
 # component_data/
 # index_data/
+
+# Standalone mode - generated data directories
+component-index/data/components/
+component-index/data/chromadb/
+component-generator/data/*
+!component-generator/data/.gitkeep
+!component-index/data/.gitkeep
 
 # Generated component test outputs
 component-generator/test-outputs/*

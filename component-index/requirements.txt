@@ -1,9 +1,9 @@
 # Flowise Component Index & RAG Dependencies
 
 # Core FastAPI and async support
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
 
 # Vector Database (for RAG/pattern matching)
 chromadb>=0.4.22

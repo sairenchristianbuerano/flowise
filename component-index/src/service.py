@@ -10,6 +10,7 @@ import uuid
 from typing import Optional, List
 import structlog
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from models import ComponentMetadata, ComponentRegistrationRequest, ComponentListResponse
@@ -23,6 +24,20 @@ app = FastAPI(
     title="Flowise Component Index",
     version="1.0.0",
     description="Component registry and tracking for Flowise components"
+)
+
+# CORS Configuration
+cors_origins = os.getenv("CORS_ORIGINS", '["http://localhost:8085", "http://localhost:3000"]')
+# Parse JSON string to list
+import json
+allowed_origins = json.loads(cors_origins) if isinstance(cors_origins, str) else cors_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 # Storage instance

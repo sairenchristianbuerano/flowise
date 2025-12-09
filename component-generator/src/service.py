@@ -10,6 +10,7 @@ import yaml
 from typing import Optional
 import structlog
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from flowise_agent import CustomComponentGenerator, ComponentSpec, GeneratedComponent
@@ -24,6 +25,20 @@ app = FastAPI(
     description="Generate custom Flowise components from specifications"
 )
 
+# CORS Configuration
+cors_origins = os.getenv("CORS_ORIGINS", '["http://localhost:8086", "http://localhost:3000"]')
+# Parse JSON string to list
+import json
+allowed_origins = json.loads(cors_origins) if isinstance(cors_origins, str) else cors_origins
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
 # Agent instances
 generator: Optional[CustomComponentGenerator] = None
 feasibility_checker: Optional[FlowiseFeasibilityChecker] = None
@@ -31,7 +46,7 @@ feasibility_checker: Optional[FlowiseFeasibilityChecker] = None
 
 class GenerateRequest(BaseModel):
     """Request model for component generation"""
-    spec_yaml: str
+    spec: str
 
 
 @app.on_event("startup")
@@ -70,11 +85,14 @@ async def generate_component_endpoint(request: GenerateRequest):
 
     Request body:
     {
-        "spec_yaml": "<YAML specification string>"
+        "spec": "<YAML specification string>"
     }
 
-    This endpoint generates JavaScript code for Flowise custom components.
-    Deployment to tf-flowise-dev-env is optional and handled separately.
+    Response:
+    {
+        "code": "<Generated TypeScript/JavaScript code>",
+        "documentation": "<Component usage documentation>"
+    }
     """
     if not generator:
         raise HTTPException(status_code=503, detail="Generator not initialized")
@@ -82,7 +100,7 @@ async def generate_component_endpoint(request: GenerateRequest):
     try:
         # Parse YAML specification
         logger.info("Parsing component specification from YAML")
-        spec_dict = yaml.safe_load(request.spec_yaml)
+        spec_dict = yaml.safe_load(request.spec)
 
         # Convert to ComponentSpec
         spec = ComponentSpec(**spec_dict)
@@ -96,7 +114,11 @@ async def generate_component_endpoint(request: GenerateRequest):
             code_size=len(result.component_code)
         )
 
-        return result.dict()
+        # Return simplified response
+        return {
+            "code": result.component_code,
+            "documentation": result.documentation or ""
+        }
     except yaml.YAMLError as e:
         logger.error("YAML parsing failed", error=str(e))
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {str(e)}")
@@ -115,11 +137,11 @@ async def generate_sample_component():
     this endpoint without any request body to see an example of what the
     generator produces.
 
-    Returns the same structure as the main generate endpoint:
-    - component_code: Generated TypeScript code
-    - validation: Validation results
-    - dependencies: Required npm packages
-    - documentation: Usage documentation
+    Response:
+    {
+        "code": "<Generated TypeScript code>",
+        "documentation": "<Component usage documentation>"
+    }
     """
     if not generator:
         raise HTTPException(status_code=503, detail="Generator not initialized")
@@ -154,10 +176,10 @@ async def generate_sample_component():
             code_size=len(result.component_code)
         )
 
+        # Return simplified response
         return {
-            **result.dict(),
-            "sample": True,
-            "note": "This is a sample component generated from component_spec_example.yaml"
+            "code": result.component_code,
+            "documentation": result.documentation or ""
         }
     except yaml.YAMLError as e:
         logger.error("Sample YAML parsing failed", error=str(e))
@@ -174,7 +196,7 @@ async def assess_feasibility_endpoint(request: GenerateRequest):
 
     Request body:
     {
-        "spec_yaml": "<YAML specification string>"
+        "spec": "<YAML specification string>"
     }
 
     Returns feasibility analysis including:
@@ -190,7 +212,7 @@ async def assess_feasibility_endpoint(request: GenerateRequest):
     try:
         # Parse YAML specification
         logger.info("Parsing component specification from YAML for assessment")
-        spec_dict = yaml.safe_load(request.spec_yaml)
+        spec_dict = yaml.safe_load(request.spec)
 
         # Convert to ComponentSpec
         spec = ComponentSpec(**spec_dict)
